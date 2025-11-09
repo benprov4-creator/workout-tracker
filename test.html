@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Tracker Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, sans-serif;
+            background: #0f172a;
+            color: white;
+        }
+        .test-item {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #1e293b;
+        }
+        .pass { border-left: 4px solid #10b981; }
+        .fail { border-left: 4px solid #ef4444; }
+        .loading { border-left: 4px solid #f59e0b; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Workout Tracker Diagnostics</h1>
+    <div id="tests"></div>
+
+    <script>
+        const testsDiv = document.getElementById('tests');
+        
+        function addTest(name, status, message) {
+            const div = document.createElement('div');
+            div.className = `test-item ${status}`;
+            div.innerHTML = `<strong>${name}:</strong> ${message}`;
+            testsDiv.appendChild(div);
+        }
+
+        // Test 1: Basic HTML
+        addTest('HTML Rendering', 'pass', 'HTML is working! You can see this text.');
+
+        // Test 2: JavaScript
+        try {
+            addTest('JavaScript', 'pass', 'JavaScript is executing.');
+        } catch(e) {
+            addTest('JavaScript', 'fail', 'JavaScript error: ' + e.message);
+        }
+
+        // Test 3: React
+        setTimeout(() => {
+            if (window.React) {
+                addTest('React', 'pass', 'React loaded successfully (v' + React.version + ')');
+            } else {
+                addTest('React', 'fail', 'React failed to load from CDN');
+            }
+        }, 2000);
+
+        // Test 4: Recharts
+        setTimeout(() => {
+            if (window.Recharts) {
+                addTest('Recharts', 'pass', 'Recharts loaded successfully');
+            } else {
+                addTest('Recharts', 'fail', 'Recharts failed to load from CDN');
+            }
+        }, 2000);
+
+        // Test 5: Babel
+        setTimeout(() => {
+            if (window.Babel) {
+                addTest('Babel', 'pass', 'Babel loaded successfully');
+            } else {
+                addTest('Babel', 'fail', 'Babel failed to load from CDN');
+            }
+        }, 2000);
+
+        // Test 6: Firebase
+        setTimeout(() => {
+            if (window.firebaseModules) {
+                addTest('Firebase', 'pass', 'Firebase modules loaded successfully');
+            } else {
+                addTest('Firebase', 'loading', 'Firebase still loading or failed (this is OK if other tests pass)');
+            }
+        }, 3000);
+
+        // Test 7: Try to render React
+        setTimeout(() => {
+            try {
+                if (window.React && window.ReactDOM) {
+                    const testDiv = document.createElement('div');
+                    testDiv.id = 'react-test';
+                    document.body.appendChild(testDiv);
+                    
+                    const TestComponent = () => React.createElement('div', {
+                        style: {background: '#10b981', padding: '20px', margin: '20px 0', borderRadius: '5px'}
+                    }, '✅ React Rendering Works!');
+                    
+                    ReactDOM.createRoot(testDiv).render(React.createElement(TestComponent));
+                    addTest('React Rendering', 'pass', 'React can render components');
+                }
+            } catch(e) {
+                addTest('React Rendering', 'fail', 'React rendering error: ' + e.message);
+            }
+        }, 3000);
+
+        // Test 8: Console check
+        addTest('Browser Console', 'loading', 'Check your browser console (F12) for any errors');
+    </script>
+
+    <!-- Load libraries -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+    <script src="https://unpkg.com/recharts@2/dist/Recharts.js"></script>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        window.firebaseModules = { initializeApp, getFirestore };
+    </script>
+</body>
+</html>
