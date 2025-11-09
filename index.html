@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workout Tracker</title>
+    <meta name="description" content="Track your workouts and progress">
+    <meta name="theme-color" content="#1e293b">
+    <link rel="manifest" href="manifest.json">
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/recharts@2.5.0/dist/Recharts.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        window.firebaseModules = {
+            initializeApp,
+            getFirestore,
+            collection,
+            addDoc,
+            getDocs,
+            deleteDoc,
+            doc,
+            query,
+            orderBy
+        };
+    </script>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+                sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        #root {
+            min-height: 100vh;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel" data-type="module">
+        const { useState, useEffect } = React;
+        const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
+        
+        // Lucide icons as simple SVG components
+        const TrendingUp = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+            </svg>
+        );
+        
+        const Calendar = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+        );
+        
+        const Dumbbell = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.4 14.4 9.6 9.6"></path>
+                <path d="M18.657 21.485a2 2 0 1 1-2.829-2.828l-1.767 1.768a2 2 0 1 1-2.829-2.829l6.364-6.364a2 2 0 1 1 2.829 2.829l-1.768 1.767a2 2 0 1 1 2.828 2.829z"></path>
+                <path d="m21.5 21.5-1.4-1.4"></path>
+                <path d="M3.9 3.9 2.5 2.5"></path>
+                <path d="M6.404 12.768a2 2 0 1 1-2.829-2.829l1.768-1.767a2 2 0 1 1-2.828-2.829l2.828-2.828a2 2 0 1 1 2.829 2.828l1.767-1.768a2 2 0 1 1 2.829 2.829z"></path>
+            </svg>
+        );
+        
+        const Plus = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+        );
+        
+        const X = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        );
+        
+        const BarChart3 = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18"></path>
+                <path d="M18 17V9"></path>
+                <path d="M13 17V5"></path>
+                <path d="M8 17v-3"></path>
+            </svg>
+        );
+        
+        const Cloud = () => (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"></path>
+            </svg>
+        );
+
+        // Firebase configuration - REPLACE WITH YOUR OWN VALUES
+        const firebaseConfig = {
+          apiKey: "AIzaSyBaGjY4UHJGGEvz2uuRrwVUCTHQRDr73aw",
+          authDomain: "fitness-tracker-e5ab9.firebaseapp.com",
+          projectId: "fitness-tracker-e5ab9",
+          storageBucket: "fitness-tracker-e5ab9.firebasestorage.app",
+          messagingSenderId: "931042721955",
+          appId: "1:931042721955:web:933fca5c74250042d73f16"
+        };
+
+        // Wait for Firebase modules to load
+        const waitForFirebase = () => {
+            return new Promise((resolve) => {
+                const checkFirebase = () => {
+                    if (window.firebaseModules) {
+                        resolve();
+                    } else {
+                        setTimeout(checkFirebase, 100);
+                    }
+                };
+                checkFirebase();
+            });
+        };
+
+        // Initialize Firebase
+        let app, db;
+        waitForFirebase().then(() => {
+            const { initializeApp, getFirestore } = window.firebaseModules;
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+        });
+
+        const WorkoutTracker = () => {
+          const workoutDays = {
+            day1: {
+              name: "DAY 1 — Anterior / Push-Dominant",
+              sections: [
+                {
+                  title: "Lower-Body Contrast (Quad Focus)",
+                  exercises: [
+                    { id: 'front_squat', name: 'Front Squat / Back Squat', sets: 4, targetReps: '4-5', notes: '@ 80-85%' },
+                    { id: 'jump_squat', name: 'Jump Squat / Box Jump', sets: 4, targetReps: '5', notes: 'light, max speed' }
+                  ]
+                },
+                {
+                  title: "Upper-Body Contrast (Push Focus)",
+                  exercises: [
+                    { id: 'barbell_press', name: 'Incline Barbell Press', sets: 4, targetReps: '6', notes: '@ RPE 7-8' },
+                    { id: 'plyo_pushup', name: 'Plyo Push-Up / Med-Ball Chest Pass', sets: 4, targetReps: '5', notes: '' }
+                  ]
+                },
+                {
+                  title: "Accessory / Unilateral Strength",
+                  exercises: [
+                    { id: 'bulgarian_split', name: 'Bulgarian Split Squat', sets: 3, targetReps: '8/leg', notes: '' },
+                    { id: 'dips', name: 'Dips', sets: 3, targetReps: '8-10', notes: '' }
+                  ]
+                },
+                {
+                  title: "Optional Compromised Run",
+                  exercises: [
+                    { id: 'run_day1', name: 'Run: 2×1km', sets: 2, targetReps: '1km', notes: '@ 4:05-4:15/km, 90s jog', isPaceExercise: true }
+                  ]
+                }
+              ]
+            },
+            day2: {
+              name: "DAY 2 — Posterior / Pull-Dominant",
+              sections: [
+                {
+                  title: "Lower-Body Contrast (Hinge Focus)",
+                  exercises: [
+                    { id: 'deadlift', name: 'Deadlift', sets: 4, targetReps: '3-4', notes: '@ 85-90%' },
+                    { id: 'kb_swing', name: 'Kettlebell Swing / Broad Jump', sets: 4, targetReps: '6', notes: 'explosive hip drive' }
+                  ]
+                },
+                {
+                  title: "Upper-Body Contrast (Pull Focus)",
+                  exercises: [
+                    { id: 'barbell_row', name: 'Barbell Row / Weighted Pull-Up', sets: 4, targetReps: '6', notes: '' },
+                    { id: 'chinup', name: 'Chin-Up / Band-Assisted Pull-Up', sets: 4, targetReps: '5', notes: 'fast concentric' }
+                  ]
+                },
+                {
+                  title: "Accessory / Vertical Push",
+                  exercises: [
+                    { id: 'ohp', name: 'Overhead Press', sets: 3, targetReps: '6-8', notes: '' },
+                    { id: 'hanging_leg_raise', name: 'Hanging Leg Raise / Pallof Press', sets: 3, targetReps: '12', notes: '' }
+                  ]
+                },
+                {
+                  title: "Optional Threshold Run",
+                  exercises: [
+                    { id: 'run_day2', name: 'Run: 3×1km', sets: 3, targetReps: '1km', notes: '@ 4:00-4:05/km, 90s jog', isPaceExercise: true }
+                  ]
+                }
+              ]
+            }
+          };
+const [workoutHistory, setWorkoutHistory] = useState([]);
+          const [currentDay, setCurrentDay] = useState('day1');
+          const [activeWorkout, setActiveWorkout] = useState(null);
+          const [view, setView] = useState('log');
+          const [isLoading, setIsLoading] = useState(true);
+          const [isSyncing, setIsSyncing] = useState(false);
+
+          useEffect(() => {
+            loadWorkouts();
+          }, []);
+
+          const loadWorkouts = async () => {
+            try {
+              setIsLoading(true);
+              const { collection, getDocs, query, orderBy } = window.firebaseModules;
+              const q = query(collection(db, 'workouts'), orderBy('date', 'asc'));
+              const querySnapshot = await getDocs(q);
+              const workouts = [];
+              querySnapshot.forEach((doc) => {
+                workouts.push({ firestoreId: doc.id, ...doc.data() });
+              });
+              setWorkoutHistory(workouts);
+            } catch (error) {
+              console.error('Error loading workouts:', error);
+              alert('Error loading workouts from cloud. Check internet connection.');
+            } finally {
+              setIsLoading(false);
+            }
+          };
+
+          const startWorkout = () => {
+            const workout = {
+              id: Date.now(),
+              day: currentDay,
+              date: new Date().toISOString(),
+              exercises: {}
+            };
+            setActiveWorkout(workout);
+          };
+
+          const logSet = (exerciseId, setNumber, weight, reps, pace) => {
+            setActiveWorkout(prev => {
+              const updated = { ...prev };
+              if (!updated.exercises[exerciseId]) {
+                updated.exercises[exerciseId] = [];
+              }
+              
+              const setData = pace !== undefined 
+                ? { setNumber, pace }
+                : { setNumber, weight: parseFloat(weight) || 0, reps: parseInt(reps) || 0 };
+              
+              const existingSetIndex = updated.exercises[exerciseId].findIndex(s => s.setNumber === setNumber);
+              if (existingSetIndex >= 0) {
+                updated.exercises[exerciseId][existingSetIndex] = setData;
+              } else {
+                updated.exercises[exerciseId].push(setData);
+              }
+              
+              return updated;
+            });
+          };
+
+          const completeWorkout = async () => {
+            if (activeWorkout && Object.keys(activeWorkout.exercises).length > 0) {
+              try {
+                setIsSyncing(true);
+                const { collection, addDoc } = window.firebaseModules;
+                const docRef = await addDoc(collection(db, 'workouts'), {
+                  id: activeWorkout.id,
+                  day: activeWorkout.day,
+                  date: activeWorkout.date,
+                  exercises: activeWorkout.exercises
+                });
+                
+                setWorkoutHistory(prev => [...prev, { ...activeWorkout, firestoreId: docRef.id }]);
+                setActiveWorkout(null);
+                alert('Workout saved to cloud!');
+              } catch (error) {
+                console.error('Error saving workout:', error);
+                alert('Error saving workout. Check your internet connection.');
+              } finally {
+                setIsSyncing(false);
+              }
+            }
+          };
+
+          const cancelWorkout = () => {
+            setActiveWorkout(null);
+          };
+
+          const deleteWorkout = async (workoutId, firestoreId) => {
+            try {
+              setIsSyncing(true);
+              if (firestoreId) {
+                const { doc, deleteDoc } = window.firebaseModules;
+                await deleteDoc(doc(db, 'workouts', firestoreId));
+              }
+              setWorkoutHistory(prev => prev.filter(w => w.id !== workoutId));
+            } catch (error) {
+              console.error('Error deleting workout:', error);
+              alert('Error deleting workout. Try again.');
+            } finally {
+              setIsSyncing(false);
+            }
+          };
+
+          const paceToSeconds = (paceString) => {
+            if (!paceString) return 0;
+            const parts = paceString.split(':');
+            if (parts.length !== 2) return 0;
+            const minutes = parseInt(parts[0]) || 0;
+            const seconds = parseInt(parts[1]) || 0;
+            return minutes * 60 + seconds;
+          };
+
+          const secondsToPace = (totalSeconds) => {
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+          };
+
+          const getPaceProgressData = (exerciseId) => {
+            const relevantWorkouts = workoutHistory.filter(w => w.exercises[exerciseId]);
+            
+            return relevantWorkouts.map(workout => {
+              const sets = workout.exercises[exerciseId];
+              const paceSeconds = sets.map(s => paceToSeconds(s.pace)).filter(p => p > 0);
+              const avgPaceSeconds = paceSeconds.length > 0 
+                ? paceSeconds.reduce((sum, p) => sum + p, 0) / paceSeconds.length 
+                : 0;
+              const bestPaceSeconds = paceSeconds.length > 0 ? Math.min(...paceSeconds) : 0;
+              
+              return {
+                date: new Date(workout.date).toLocaleDateString(),
+                avgPace: avgPaceSeconds,
+                bestPace: bestPaceSeconds,
+                numSets: sets.length
+              };
+            }).filter(d => d.avgPace > 0);
+          };
+
+          const getProgressData = (exerciseId) => {
+            const relevantWorkouts = workoutHistory.filter(w => w.exercises[exerciseId]);
+            
+            return relevantWorkouts.map(workout => {
+              const sets = workout.exercises[exerciseId];
+              const maxWeight = Math.max(...sets.map(s => s.weight || 0));
+              const totalVolume = sets.reduce((sum, s) => sum + ((s.weight || 0) * (s.reps || 0)), 0);
+              const numSets = sets.length;
+              
+              return {
+                date: new Date(workout.date).toLocaleDateString(),
+                maxWeight,
+                totalVolume,
+                numSets,
+                avgReps: sets.reduce((sum, s) => sum + (s.reps || 0), 0) / sets.length
+              };
+            });
+          };
+
+          const getAllExercises = () => {
+            const exercises = [];
+            Object.entries(workoutDays).forEach(([dayKey, day]) => {
+              day.sections.forEach(section => {
+                section.exercises.forEach(exercise => {
+                  exercises.push({ ...exercise, day: dayKey });
+                });
+              });
+            });
+            return exercises;
+          };
+
+          if (view === 'progress') {
+            const allExercises = getAllExercises();
+            const weightExercises = allExercises.filter(ex => 
+              workoutHistory.some(w => w.exercises[ex.id]) && !ex.isPaceExercise
+            );
+            const paceExercises = allExercises.filter(ex => 
+              workoutHistory.some(w => w.exercises[ex.id]) && ex.isPaceExercise
+            );
+
+            return (
+              <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+                <div className="max-w-6xl mx-auto">
+                  <div className="bg-slate-800 rounded-lg shadow-xl p-6 mb-6">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <BarChart3 />
+                        <h1 className="text-3xl font-bold text-white">Progress Tracking</h1>
+                      </div>
+                      <button
+                        onClick={() => setView('log')}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                      >
+                        Back to Workout Log
+                      </button>
+                    </div>
+
+                    {weightExercises.length === 0 && paceExercises.length === 0 ? (
+                      <p className="text-slate-400 text-center py-8">No workout data yet. Complete some workouts to see your progress!</p>
+                    ) : (
+                      <div className="space-y-8">
+                        {weightExercises.length > 0 && (
+                          <div className="grid gap-6">
+                            <h2 className="text-2xl font-bold text-white">Strength Exercises</h2>
+                            {weightExercises.map(exercise => {
+                              const progressData = getProgressData(exercise.id);
+                              
+                              if (progressData.length < 2) return null;
+
+                              const latestData = progressData[progressData.length - 1];
+                              const firstData = progressData[0];
+
+                              return (
+                                <div key={exercise.id} className="bg-slate-700 rounded-lg p-6">
+                                  <h3 className="text-xl font-bold text-white mb-4">{exercise.name}</h3>
+                                  
+                                  <div className="grid md:grid-cols-3 gap-4 mb-4">
+                                    <div className="bg-slate-600 rounded p-4">
+                                      <p className="text-slate-300 text-sm mb-1">Latest Max Weight</p>
+                                      <p className="text-2xl font-bold text-blue-400">
+                                        {latestData.maxWeight} lbs
+                                      </p>
+                                    </div>
+                                    <div className="bg-slate-600 rounded p-4">
+                                      <p className="text-slate-300 text-sm mb-1">Weight Increase</p>
+                                      <p className="text-2xl font-bold text-green-400">
+                                        +{(latestData.maxWeight - firstData.maxWeight).toFixed(1)} lbs
+                                      </p>
+                                    </div>
+                                    <div className="bg-slate-600 rounded p-4">
+                                      <p className="text-slate-300 text-sm mb-1">Current Sets</p>
+                                      <p className="text-2xl font-bold text-purple-400">
+                                        {latestData.numSets} sets
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <ResponsiveContainer width="100%" height={300}>
+                                    <LineChart data={progressData}>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                                      <XAxis dataKey="date" stroke="#94a3b8" />
+                                      <YAxis yAxisId="left" stroke="#94a3b8" />
+                                      <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" />
+                                      <Tooltip 
+                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#e2e8f0' }}
+                                      />
+                                      <Legend />
+                                      <Line yAxisId="left" type="monotone" dataKey="maxWeight" stroke="#3b82f6" name="Max Weight (lbs)" strokeWidth={2} />
+                                      <Line yAxisId="right" type="monotone" dataKey="numSets" stroke="#a855f7" name="Number of Sets" strokeWidth={2} />
+                                      <Line yAxisId="left" type="monotone" dataKey="totalVolume" stroke="#10b981" name="Total Volume" strokeWidth={2} />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        {paceExercises.length > 0 && (
+                          <div className="grid gap-6">
+                            <h2 className="text-2xl font-bold text-white">Running</h2>
+                            {paceExercises.map(exercise => {
+                              const progressData = getPaceProgressData(exercise.id);
+                              
+                              if (progressData.length < 1) return null;
+
+                              const latestData = progressData[progressData.length - 1];
+                              const firstData = progressData[0];
+                              const paceImprovement = firstData.bestPace - latestData.bestPace;
+
+                              return (
+                                <div key={exercise.id} className="bg-slate-700 rounded-lg p-6">
+                                  <h3 className="text-xl font-bold text-white mb-4">{exercise.name}</h3>
+                                  
+                                  <div className="grid md:grid-cols-3 gap-4 mb-4">
+                                    <div className="bg-slate-600 rounded p-4">
+                                      <p className="text-slate-300 text-sm mb-1">Latest Best Pace</p>
+                                      <p className="text-2xl font-bold text-blue-400">
+                                        {secondsToPace(latestData.bestPace)} /km
+                                      </p>
+                                    </div>
+                                    <div className="bg-slate-600 rounded p-4">
+                                      <p className="text-slate-300 text-sm mb-1">Pace Improvement</p>
+                                      <p className={`text-2xl font-bold ${paceImprovement > 0 ? 'text-green-400' : 'text-slate-400'}`}>
+                                        {paceImprovement > 0 ? '-' : '+'}{Math.abs(paceImprovement)}s /km
+                                      </p>
+                                    </div>
+                                    <div className="bg-slate-600 rounded p-4">
+                                      <p className="text-slate-300 text-sm mb-1">Latest Avg Pace</p>
+                                      <p className="text-2xl font-bold text-purple-400">
+                                        {secondsToPace(latestData.avgPace)} /km
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <ResponsiveContainer width="100%" height={300}>
+                                    <LineChart data={progressData}>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#475569" />
+                                      <XAxis dataKey="date" stroke="#94a3b8" />
+                                      <YAxis 
+                                        yAxisId="left" 
+                                        stroke="#94a3b8"
+                                        domain={['dataMin - 10', 'dataMax + 10']}
+                                        tickFormatter={(value) => secondsToPace(value)}
+                                      />
+                                      <YAxis yAxisId="right" orientation="right" stroke="#94a3b8" />
+                                      <Tooltip 
+                                        contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569', borderRadius: '8px' }}
+                                        labelStyle={{ color: '#e2e8f0' }}
+                                        formatter={(value, name) => {
+                                          if (name === 'Best Pace' || name === 'Average Pace') {
+                                            return [secondsToPace(value) + ' /km', name];
+                                          }
+                                          return [value, name];
+                                        }}
+                                      />
+                                      <Legend />
+                                      <Line yAxisId="left" type="monotone" dataKey="bestPace" stroke="#3b82f6" name="Best Pace" strokeWidth={2} />
+                                      <Line yAxisId="left" type="monotone" dataKey="avgPace" stroke="#10b981" name="Average Pace" strokeWidth={2} />
+                                      <Line yAxisId="right" type="monotone" dataKey="numSets" stroke="#a855f7" name="Number of Sets" strokeWidth={2} />
+                                    </LineChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-4">
+              <div className="max-w-6xl mx-auto">
+                <div className="bg-slate-800 rounded-lg shadow-xl p-6 mb-6">
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <Dumbbell />
+                      <h1 className="text-3xl font-bold text-white">Workout Tracker</h1>
+                      {isSyncing && (
+                        <div className="flex items-center gap-2 text-blue-400 text-sm">
+                          <Cloud />
+                          <span>Syncing...</span>
+                        </div>
+                      )}
+                      {!isSyncing && !isLoading && (
+                        <div className="flex items-center gap-2 text-green-400 text-sm">
+                          <Cloud />
+                          <span>Synced</span>
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => setView('progress')}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                    >
+                      <TrendingUp />
+                      View Progress
+                    </button>
+                  </div>
+
+                  {isLoading ? (
+                    <div className="text-center py-12">
+                      <Cloud />
+                      <p className="text-slate-300 text-lg">Loading your workouts from cloud...</p>
+                    </div>
+                  ) : !activeWorkout ? (
+                    <div className="space-y-4">
+                      <div className="flex gap-4 mb-6">
+                        <button
+                          onClick={() => setCurrentDay('day1')}
+                          className={`flex-1 p-4 rounded-lg font-semibold transition ${
+                            currentDay === 'day1'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          }`}
+                        >
+                          DAY 1: Anterior / Push
+                        </button>
+                        <button
+                          onClick={() => setCurrentDay('day2')}
+                          className={`flex-1 p-4 rounded-lg font-semibold transition ${
+                            currentDay === 'day2'
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                          }`}
+                        >
+                          DAY 2: Posterior / Pull
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={startWorkout}
+                        className="w-full flex items-center justify-center gap-2 py-4 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition text-lg"
+                      >
+                        <Plus />
+                        Start {workoutDays[currentDay].name}
+                      </button>
+                    </div>
+                  ) : (
+                    <ActiveWorkoutView
+                      workout={activeWorkout}
+                      workoutDay={workoutDays[currentDay]}
+                      onLogSet={logSet}
+                      onComplete={completeWorkout}
+                      onCancel={cancelWorkout}
+                      workoutHistory={workoutHistory}
+                    />
+                  )}
+                </div>
+
+                <WorkoutHistory 
+                  history={workoutHistory} 
+                  workoutDays={workoutDays}
+                  onDelete={deleteWorkout}
+                />
+              </div>
+            </div>
+          );
+        };
+
+        const ActiveWorkoutView = ({ workout, workoutDay, onLogSet, onComplete, onCancel, workoutHistory }) => {
+          const getPreviousPerformance = (exerciseId) => {
+            const previousWorkouts = workoutHistory
+              .filter(w => w.day === workout.day && w.exercises[exerciseId])
+              .sort((a, b) => new Date(b.date) - new Date(a.date));
+            
+            return previousWorkouts[0]?.exercises[exerciseId] || null;
+          };
+
+          return (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-white">{workoutDay.name}</h2>
+                <div className="flex gap-2">
+                  <button
+                    onClick={onCancel}
+                    className="px-4 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-500 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={onComplete}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-semibold"
+                  >
+                    Complete Workout
+                  </button>
+                </div>
+              </div>
+
+              {workoutDay.sections.map((section, sectionIdx) => (
+                <div key={sectionIdx} className="bg-slate-700 rounded-lg p-6">
+                  <h3 className="text-xl font-bold text-blue-400 mb-4">{section.title}</h3>
+                  
+                  {section.exercises.map(exercise => {
+                    const previousSets = getPreviousPerformance(exercise.id);
+                    
+                    return (
+                      <ExerciseLogger
+                        key={exercise.id}
+                        exercise={exercise}
+                        workout={workout}
+                        onLogSet={onLogSet}
+                        previousSets={previousSets}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          );
+        };
+
+        const ExerciseLogger = ({ exercise, workout, onLogSet, previousSets }) => {
+          const currentSets = workout.exercises[exercise.id] || [];
+          const [numSets, setNumSets] = useState(exercise.sets);
+
+          useEffect(() => {
+            if (currentSets.length > exercise.sets) {
+              setNumSets(currentSets.length);
+            }
+          }, [currentSets.length, exercise.sets]);
+
+          const addSet = () => {
+            setNumSets(prev => prev + 1);
+          };
+
+          return (
+            <div className="mb-6 last:mb-0">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h4 className="text-lg font-semibold text-white">{exercise.name}</h4>
+                  <p className="text-sm text-slate-400">
+                    {numSets} sets × {exercise.targetReps} reps {exercise.notes && `• ${exercise.notes}`}
+                  </p>
+                </div>
+                <button
+                  onClick={addSet}
+                  className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition"
+                >
+                  <Plus />
+                  Add Set
+                </button>
+              </div>
+
+              {previousSets && (
+                <div className="bg-slate-600 rounded p-3 mb-3">
+                  <p className="text-xs text-slate-300 mb-2 font-semibold">Previous Performance:</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {previousSets.map((set, idx) => (
+                      <span key={idx} className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">
+                        {exercise.isPaceExercise 
+                          ? `Set ${set.setNumber}: ${set.pace || 'N/A'}`
+                          : `Set ${set.setNumber}: ${set.weight}lbs × ${set.reps}`
+                        }
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                {Array.from({ length: numSets }).map((_, setIdx) => {
+                  const setNumber = setIdx + 1;
+                  const currentSet = currentSets.find(s => s.setNumber === setNumber);
+                  
+                  if (exercise.isPaceExercise) {
+                    return (
+                      <div key={setIdx} className="flex items-center gap-3 bg-slate-600 rounded p-3">
+                        <span className="text-white font-semibold w-16">Set {setNumber}</span>
+                        <input
+                          type="text"
+                          placeholder="e.g., 4:10"
+                          value={currentSet?.pace || ''}
+                          onChange={(e) => onLogSet(exercise.id, setNumber, 0, 0, e.target.value)}
+                          className="flex-1 px-3 py-2 bg-slate-700 text-white rounded border border-slate-500 focus:border-blue-500 focus:outline-none"
+                        />
+                        <span className="text-slate-400">min/km</span>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div key={setIdx} className="flex items-center gap-3 bg-slate-600 rounded p-3">
+                      <span className="text-white font-semibold w-16">Set {setNumber}</span>
+                      <input
+                        type="number"
+                        placeholder="Weight"
+                        step="2.5"
+                        value={currentSet?.weight || ''}
+                        onChange={(e) => onLogSet(exercise.id, setNumber, e.target.value, currentSet?.reps || 0)}
+                        className="flex-1 px-3 py-2 bg-slate-700 text-white rounded border border-slate-500 focus:border-blue-500 focus:outline-none"
+                      />
+                      <span className="text-slate-400">lbs ×</span>
+                      <input
+                        type="number"
+                        placeholder="Reps"
+                        value={currentSet?.reps || ''}
+                        onChange={(e) => onLogSet(exercise.id, setNumber, currentSet?.weight || 0, e.target.value)}
+                        className="w-20 px-3 py-2 bg-slate-700 text-white rounded border border-slate-500 focus:border-blue-500 focus:outline-none"
+                      />
+                      <span className="text-slate-400">reps</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        };
+
+        const WorkoutHistory = ({ history, workoutDays, onDelete }) => {
+          if (history.length === 0) return null;
+
+          const sortedHistory = [...history].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+          return (
+            <div className="bg-slate-800 rounded-lg shadow-xl p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <Calendar />
+                <h2 className="text-2xl font-bold text-white">Workout History</h2>
+              </div>
+
+              <div className="space-y-4">
+                {sortedHistory.map(workout => {
+                  const dayInfo = workoutDays[workout.day];
+                  
+                  return (
+                    <div key={workout.id} className="bg-slate-700 rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h3 className="text-lg font-semibold text-white">{dayInfo.name}</h3>
+                          <p className="text-sm text-slate-400">
+                            {new Date(workout.date).toLocaleDateString('en-US', { 
+                              weekday: 'long', 
+                              year: 'numeric', 
+                              month: 'long', 
+                              day: 'numeric' 
+                            })}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => onDelete(workout.id, workout.firestoreId)}
+                          className="p-2 text-red-400 hover:bg-red-400 hover:text-white rounded transition"
+                        >
+                          <X />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {Object.entries(workout.exercises).map(([exerciseId, sets]) => {
+                          let exerciseName = exerciseId;
+                          let isPaceExercise = false;
+                          dayInfo.sections.forEach(section => {
+                            const ex = section.exercises.find(e => e.id === exerciseId);
+                            if (ex) {
+                              exerciseName = ex.name;
+                              isPaceExercise = ex.isPaceExercise || false;
+                            }
+                          });
+
+                          return (
+                            <div key={exerciseId} className="bg-slate-600 rounded p-3">
+                              <p className="text-white font-semibold mb-2">{exerciseName}</p>
+                              <div className="flex gap-2 flex-wrap">
+                                {sets.map((set, idx) => (
+                                  <span key={idx} className="text-sm bg-slate-700 px-3 py-1 rounded text-slate-300">
+                                    {isPaceExercise 
+                                      ? `${set.pace || 'N/A'} min/km`
+                                      : `${set.weight}lbs × ${set.reps}`
+                                    }
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<WorkoutTracker />);
+    </script>
+</body>
+</html>
